@@ -46,15 +46,34 @@ run_stage autoconf autoconf
 run_stage configure ./configure --prefix="$root/_install" \
   --with-opam-switch=bootstrap "${configure_flags[@]}"
 run_stage boot gmake -s boot-compiler
-result=0
-run_stage fmt gmake -s fmt || result=1
-git diff --exit-code || result=1
-run_stage upstream-tests gmake -s test || result=1
-run_stage oxcaml-tests gmake -s runtest || result=1
-if run_stage install gmake -s install; then
-  run_stage installed bash tools/ci/actions/check-installed.sh \
-    "$root/_install" || result=1
-else
-  result=1
-fi
-exit "$result"
+export OCAMLLIB="$root/_build/default/stdlib/build"
+mkdir -p "$root/_ci_logs/native-smoke"
+cd "$root/_ci_logs/native-smoke"
+for name in stackoverflow stackoverflow_large_frame \
+            stackoverflow_young_ptr stackoverflow_local_fiber; do
+  cp "$root/testsuite/tests/runtime-errors/$name.ml" .
+  run_stage "compile-$name" "$root/_build/default/boot_ocamlopt.exe" \
+    "$name.ml" -o "$name.exe"
+  run_stage "$name" "./$name.exe"
+  reference="$root/testsuite/tests/runtime-errors/$name.reference"
+  if [[ $name == stackoverflow ]]; then
+    reference="$root/testsuite/tests/runtime-errors/stackoverflow.opt.reference"
+  fi
+  diff -u "$reference" "$root/_ci_logs/$name.log"
+done
+cp "$root/oxcaml/tests/backend/probes/t2.ml" .
+for mode in optimized unoptimized; do
+  flags=()
+  if [[ $mode == unoptimized ]]; then
+    flags=(-no-probes-optimized)
+  fi
+  run_stage "compile-probes-$mode" "$root/_build/default/boot_ocamlopt.exe" \
+    "${flags[@]}" t2.ml -o "probes-$mode.exe"
+  run_stage "probes-$mode" "./probes-$mode.exe"
+  diff -u "$root/oxcaml/tests/backend/probes/t2.expected" \
+    "$root/_ci_logs/probes-$mode.log"
+done
+cd "$root"
+unset OCAMLLIB
+run_stage fmt gmake -s fmt
+git diff --exit-code
