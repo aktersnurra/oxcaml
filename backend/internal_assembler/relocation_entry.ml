@@ -70,6 +70,10 @@ let create_relocation (relocation : X86_binary_emitter.Relocation.t)
         (get_reloc_info ~relocation_type:9 (* R_X86_64_GOTPCREL *)
            ~addend:(Int64.sub addend 4L) name symbol_table)
           string_table
+      | [name] when is_label name ->
+        (get_reloc_info ~relocation_type:2 (* R_X86_64_PC32 *)
+           ~addend:(Int64.sub addend 4L) name symbol_table)
+          string_table
       | [name; "PLT"] | [name] ->
         (get_reloc_info ~relocation_type:4 (* R_X86_64_PLT32 *)
            ~addend:(Int64.sub addend 4L) name symbol_table)

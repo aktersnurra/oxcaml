@@ -1,6 +1,8 @@
 #include <caml/mlvalues.h>
 
 static int called_total_atomic = 0;
+/* lld also wraps calls between runtime functions in the same object file. */
+static int atomic_call_depth = 0;
 CAMLprim value total_atomic_calls()
 {
   return Val_int(called_total_atomic);
@@ -23,12 +25,16 @@ CAMLprim value total_atomic_reset()
     called_##name = 0;                         \
     return Val_unit;                           \
   }                                            \
-  CAMLextern void __real_caml_##name(arg_tys); \
-  CAMLprim void __wrap_caml_##name(arg_tys)    \
+  CAMLextern value __real_caml_##name(arg_tys); \
+  CAMLprim value __wrap_caml_##name(arg_tys)   \
   {                                            \
-    called_##name++;                           \
-    called_total_atomic++;                     \
-    __real_caml_##name(args);                  \
+    if (atomic_call_depth++ == 0) {             \
+      called_##name++;                         \
+      called_total_atomic++;                   \
+    }                                          \
+    value result = __real_caml_##name(args);    \
+    atomic_call_depth--;                        \
+    return result;                             \
   }
 
 TRACK(atomic_load, P(value ref), P(ref))

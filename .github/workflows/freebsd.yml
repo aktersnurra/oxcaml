@@ -39,12 +39,14 @@ jobs:
           copyback: true
           prepare: |
             pkg install -y bash gmake gsed autoconf git ocaml-opam rsync parallel
+            pw useradd oxcaml -m -s /usr/local/bin/bash
           run: |
-            git config --global --add safe.directory "$PWD"
             mkdir -p _ci_logs
+            chown -R oxcaml:oxcaml "$PWD"
             status=0
-            bash tools/ci/actions/freebsd.sh ${{ matrix.configuration }} \
-              || status=$?
+            su oxcaml -c \
+              'bash tools/ci/actions/freebsd.sh ${{ matrix.configuration }}' \
+                || status=$?
             echo "$status" > _ci_logs/status
       - name: Preserve build and test logs
         if: always()
