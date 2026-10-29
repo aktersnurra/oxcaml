@@ -38,10 +38,14 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
-            pkg install -y bash gmake autoconf git ocaml-opam rsync parallel
+            pkg install -y bash gmake gsed autoconf git ocaml-opam rsync parallel
           run: |
             git config --global --add safe.directory "$PWD"
-            bash tools/ci/actions/freebsd.sh ${{ matrix.configuration }}
+            mkdir -p _ci_logs
+            status=0
+            bash tools/ci/actions/freebsd.sh ${{ matrix.configuration }} \
+              || status=$?
+            echo "$status" > _ci_logs/status
       - name: Preserve build and test logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -54,3 +58,6 @@ jobs:
             _runtest/testsuite/**/_ocamltest/**/*.log
             _runtest/testsuite/**/_ocamltest/**/*.output
           if-no-files-found: warn
+      - name: Check build and test result
+        if: always()
+        run: test "$(cat _ci_logs/status)" = 0

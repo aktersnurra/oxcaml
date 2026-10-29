@@ -15,7 +15,7 @@
 
 /* Needed for strtof_l */
 #define _GNU_SOURCE
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__FreeBSD__)
 #include <xlocale.h>
 #endif
 

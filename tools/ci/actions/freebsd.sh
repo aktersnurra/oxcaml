@@ -18,6 +18,7 @@ cd "$(git rev-parse --show-toplevel)"
 root=$PWD
 mkdir -p _ci_logs _ci_bin
 ln -sf "$(command -v gmake)" _ci_bin/make
+ln -sf "$(command -v gsed)" _ci_bin/sed
 export PATH="$root/_ci_bin:$PATH"
 export OPAMROOT
 OPAMROOT=$(mktemp -d /tmp/oxcaml-ci-opam.XXXXXX)
