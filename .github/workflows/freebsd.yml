@@ -40,6 +40,7 @@ jobs:
           prepare: |
             pkg install -y bash gmake autoconf git ocaml-opam rsync parallel
           run: |
+            git config --global --add safe.directory "$PWD"
             bash tools/ci/actions/freebsd.sh ${{ matrix.configuration }}
       - name: Preserve build and test logs
         if: always()
