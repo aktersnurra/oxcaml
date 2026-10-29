@@ -1,0 +1,55 @@
+# Keep all workflow permissions read-only for the source repository.
+name: FreeBSD
+on:
+  push:
+    branches:
+      - main
+      - 'freebsd-amd64-*'
+  pull_request:
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: FreeBSD 14.4 amd64 (${{ matrix.configuration }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [default, multidomain]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Build and test in FreeBSD
+        uses: vmactions/freebsd-vm@3dd136ca59fb7b16e229f4daba23c7690298df57
+        with:
+          release: '14.4'
+          arch: x86_64
+          mem: 6144
+          cpu: 2
+          sync: rsync
+          copyback: true
+          prepare: |
+            pkg install -y bash gmake autoconf git ocaml-opam rsync parallel
+          run: |
+            bash tools/ci/actions/freebsd.sh ${{ matrix.configuration }}
+      - name: Preserve build and test logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: freebsd-14.4-amd64-${{ matrix.configuration }}
+          path: |
+            _ci_logs/
+            _build/log
+            _build/main/log
+            _runtest/testsuite/**/_ocamltest/**/*.log
+            _runtest/testsuite/**/_ocamltest/**/*.output
+          if-no-files-found: warn
