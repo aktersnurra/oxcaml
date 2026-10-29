@@ -52,9 +52,17 @@ cd "$root/_ci_logs/native-smoke"
 for name in stackoverflow stackoverflow_large_frame \
             stackoverflow_young_ptr stackoverflow_local_fiber; do
   cp "$root/testsuite/tests/runtime-errors/$name.ml" .
+  compile_flags=(-g)
+  if [[ $name == stackoverflow ]]; then
+    compile_flags+=(-w -a)
+  fi
   run_stage "compile-$name" "$root/_build/default/boot_ocamlopt.exe" \
-    "$name.ml" -o "$name.exe"
-  run_stage "$name" "./$name.exe"
+    "${compile_flags[@]}" "$name.ml" -o "$name.exe"
+  if [[ $name == stackoverflow ]]; then
+    run_stage "$name" env OCAMLRUNPARAM=l=100000 "./$name.exe"
+  else
+    run_stage "$name" "./$name.exe"
+  fi
   reference="$root/testsuite/tests/runtime-errors/$name.reference"
   if [[ $name == stackoverflow ]]; then
     reference="$root/testsuite/tests/runtime-errors/stackoverflow.opt.reference"
