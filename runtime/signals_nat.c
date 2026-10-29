@@ -181,6 +181,8 @@ Caml_inline void context_set_pc(ucontext_t* context, void (*pc)(void))
 {
 #ifdef SYS_macosx
   context->uc_mcontext->__ss.__rip = (unsigned long long) pc;
+#elif defined(SYS_freebsd)
+  context->uc_mcontext.mc_rip = (uintnat) pc;
 #else
   context->uc_mcontext.gregs[REG_RIP] = (greg_t) pc;
 #endif
