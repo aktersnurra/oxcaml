@@ -174,7 +174,12 @@ CAMLprim value jit_memalign(value section_size) {
     addr = alloc_page_aligned_using_sbrk(page_size, size);
 #endif
   } else {
+#if defined(__FreeBSD__) && defined(__x86_64__)
+    /* jemalloc mappings may be too far from text for 32-bit relocations. */
+    addr = alloc_page_aligned_using_sbrk(page_size, size);
+#else
     addr = aligned_alloc(page_size, size);
+#endif
   }
   if (addr == NULL) {
     result = caml_alloc(1, 1);

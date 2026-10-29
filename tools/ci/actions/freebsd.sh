@@ -28,6 +28,7 @@ export DUNE_JOBS=1
 run_stage() {
   local name=$1
   shift
+  echo "::notice title=FreeBSD validation::$name"
   "$@" 2>&1 | tee "$root/_ci_logs/$name.log"
 }
 
@@ -45,9 +46,15 @@ run_stage autoconf autoconf
 run_stage configure ./configure --prefix="$root/_install" \
   --with-opam-switch=bootstrap "${configure_flags[@]}"
 run_stage boot gmake -s boot-compiler
-run_stage fmt gmake -s fmt
-git diff --exit-code
-run_stage upstream-tests gmake -s test
-run_stage oxcaml-tests gmake -s runtest
-run_stage install gmake -s install
-run_stage installed bash tools/ci/actions/check-installed.sh "$root/_install"
+result=0
+run_stage fmt gmake -s fmt || result=1
+git diff --exit-code || result=1
+run_stage upstream-tests gmake -s test || result=1
+run_stage oxcaml-tests gmake -s runtest || result=1
+if run_stage install gmake -s install; then
+  run_stage installed bash tools/ci/actions/check-installed.sh \
+    "$root/_install" || result=1
+else
+  result=1
+fi
+exit "$result"
