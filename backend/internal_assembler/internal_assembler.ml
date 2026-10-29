@@ -142,7 +142,13 @@ let parse_flags flags =
   inner 0L (String.to_seq flags ())
 
 let make_custom_section sections name raw_section ~align sh_string_table =
-  let flags = parse_flags (X86_proc.Section_name.flags name) in
+  let flags =
+    match Section_name.flags name, Section_name.to_string name with
+    | None, ".rodata" ->
+      (* Match the assembler's implicit SHF_ALLOC for .rodata. *)
+      0x2L
+    | flags, _ -> parse_flags flags
+  in
   let args_align = X86_proc.Section_name.alignment name in
   let align = Int64.max args_align align in
   make_section sections name
