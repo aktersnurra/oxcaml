@@ -1,6 +1,7 @@
 (* TEST
   include eval;
   modules = "jit_alloc_stubs.c";
+  flags = "-extension runtime_metaprogramming";
   native;
 *)
 
