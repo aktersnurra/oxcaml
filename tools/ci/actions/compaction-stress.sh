@@ -49,6 +49,9 @@ for round in 1 2 3; do
   wait "$watcher" 2>/dev/null || true
   echo "Compaction round $round: status=$status elapsed=$elapsed seconds"
   cat "$output"
-  if [[ $status != 0 || -s $output ]]; then result=1; fi
+  if [[ $status != 0 || -s $output ]]; then
+    result=1
+    cat "$root/_ci_logs/compaction-$round.processes"
+  fi
 done
 exit "$result"
