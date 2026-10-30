@@ -4,28 +4,37 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 root=$PWD
 configuration=${1:?configuration required}
+phase=${2:-all}
+case "$phase" in
+  all|runtime|packages) ;;
+  *) echo "Unknown hardening phase: $phase" >&2; exit 1 ;;
+esac
 prefix="$root/_install"
 
-# Repeat the existing regressions with a smaller minor heap and more JIT loads.
-export OCAMLRUNPARAM=s=32k
-export OCAML_JIT_STRESS_ITERATIONS=256
-for round in 1 2 3; do
-  echo "Runtime stress round $round ($configuration)"
-  for dir in quotation/eval runtime-errors callback effects/tls; do
-    gmake -s test-one-no-rebuild DIR="$dir"
-  done
-  if [[ $configuration == multidomain ]]; then
-    for dir in parallel lib-dynlink-domains lib-systhreads; do
+if [[ $phase != packages ]]; then
+  # Repeat regressions with a smaller minor heap and more JIT loads.
+  export OCAMLRUNPARAM=s=32k
+  export OCAML_JIT_STRESS_ITERATIONS=256
+  for round in 1 2 3; do
+    echo "Runtime stress round $round ($configuration)"
+    for dir in quotation/eval runtime-errors callback effects/tls; do
       gmake -s test-one-no-rebuild DIR="$dir"
     done
-  fi
-done
-unset OCAMLRUNPARAM OCAML_JIT_STRESS_ITERATIONS
+    if [[ $configuration == multidomain ]]; then
+      for dir in parallel lib-dynlink-domains lib-systhreads; do
+        gmake -s test-one-no-rebuild DIR="$dir"
+      done
+    fi
+  done
+  unset OCAMLRUNPARAM OCAML_JIT_STRESS_ITERATIONS
+fi
+if [[ $phase == runtime ]]; then exit 0; fi
 
 # Register the installed compiler without rebuilding it or using bootstrap
 # libraries, then build third-party packages and run their own test suites.
 work=$(mktemp -d /tmp/oxcaml-freebsd-packages.XXXXXX)
 trap 'rm -rf "$work"' EXIT
+bootstrap_dune=$(command -v dune)
 unset OCAMLLIB CAMLLIB OCAMLPATH CAML_LD_LIBRARY_PATH OCAMLFIND_CONF \
   OCAMLFIND_COMMANDS OCAMLFIND_TOOLCHAIN OPAM_SWITCH_PREFIX OPAMSWITCH
 export PATH="$prefix/bin:$PATH"
@@ -34,6 +43,9 @@ version=$(ocamlc -version)
 test "$version" = 5.4.0+ox
 opam switch create installed --empty --yes
 export OPAMSWITCH=installed
+overlay_repository=git+https://github.com/oxcaml/opam-repository.git
+overlay_commit=afddc8337950dbc02863fe30ae58735a1cf2719f
+opam repository add ox --yes "$overlay_repository#$overlay_commit"
 mkdir "$work/compiler"
 opam show --raw ocaml-system.5.4.0 | \
   sed 's/sys-ocaml-version = "5.4.0"/sys-ocaml-version = "5.4.0+ox"/' \
@@ -42,8 +54,21 @@ opam pin add --no-action --yes "ocaml-system.$version" "$work/compiler"
 opam install --yes "ocaml-system.$version"
 eval "$(opam env --switch=installed --set-switch --shell=sh)"
 test "$(ocamlc -where)" = "$prefix/lib/ocaml"
-opam install --yes dune.3.23.1 ocamlfind.1.9.8
-opam install --yes --with-test cppo.1.8.0 yojson.3.0.0 lwt.5.9.2
+# Dune is a self-contained build tool; keep the working bootstrap binary.
+mkdir "$work/dune-tool"
+cat > "$work/dune-tool/opam" <<OPAM
+opam-version: "2.0"
+synopsis: "Bootstrap-built Dune for installed compiler validation"
+depends: ["ocaml" {>= "4.14"} "base-unix" "base-threads"]
+install: [["install" "-m" "0755" "$bootstrap_dune" "%{bin}%/dune"]]
+OPAM
+opam pin add --no-action --yes dune.3.23.1 "$work/dune-tool"
+opam install --yes dune.3.23.1 ocamlfind.1.9.8+ox \
+  dune-configurator.3.22.2+ox alcotest.1.9.0+ox re.1.14.0+ox uutf.1.0.4+ox
+opam install --yes --with-test cppo.1.8.0 yojson.2.2.2+ox lwt.5.9.2+ox
+# The overlay's Yojson metadata has no test target, so run it explicitly.
+opam source --yes yojson.2.2.2+ox --dir="$work/yojson-tests"
+dune build --root "$work/yojson-tests" -p yojson @runtest
 opam list --installed --columns=name,version
 dune --version
 ocamlfind printconf
