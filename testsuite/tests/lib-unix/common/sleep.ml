@@ -1,8 +1,8 @@
 (* TEST
+  modules = "sleep_stubs.c";
   include unix;
   hasunix;
   not-target-windows;
-  modules = "sleep_stubs.c";
   {
     bytecode;
   }{
