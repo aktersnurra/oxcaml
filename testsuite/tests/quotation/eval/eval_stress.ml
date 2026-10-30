@@ -1,5 +1,6 @@
 (* TEST
   include eval;
+  directories += "${ocamlsrcdir}/stdlib/unix";
   hasunix;
   not-target-windows;
   flags = "-extension runtime_metaprogramming";
