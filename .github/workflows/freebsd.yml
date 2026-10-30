@@ -1,5 +1,5 @@
 # Keep all workflow permissions read-only for the source repository.
-name: FreeBSD
+name: Compaction diagnostics
 on:
   push:
     branches:
@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         release: ['14.4', '15.1']
-        configuration: [default, multidomain]
+        configuration: [multidomain]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -64,3 +64,54 @@ jobs:
       - name: Check build and test result
         if: always()
         run: test "$(cat _ci_logs/status)" = 0
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      OPAMJOBS: '2'
+      DUNE_JOBS: '1'
+      PARALLEL: '--jobs 2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Install system tools
+        run: sudo apt-get update && sudo apt-get install -y autoconf parallel
+      - uses: ocaml/setup-ocaml@e89b2ded52a6e13f50162220cf5fe47290162032
+        with:
+          ocaml-compiler: oxcaml-ci-deps.5.4.0-with-ocaml.5.4.0-with-ocamlformat.0.29.0
+          opam-repositories: |
+            local: file://${{ github.workspace }}/tools/ci/local-opam
+            default: https://github.com/ocaml/opam-repository.git
+          opam-disable-sandboxing: true
+          opam-pin: false
+      - name: Build, test, and check the installed compiler
+        run: |
+          mkdir -p _ci_logs
+          stage() {
+            local name=$1
+            shift
+            opam exec -- "$@" 2>&1 | tee "_ci_logs/$name.log"
+          }
+          stage autoconf autoconf
+          stage configure ./configure --prefix="$PWD/_install" \
+            --enable-stack-checks --enable-poll-insertion --enable-multidomain
+          stage boot make -s boot-compiler
+          stage fmt make -s fmt
+          git diff --exit-code
+          stage install make -s install
+          stage installed bash tools/ci/actions/check-installed.sh "$PWD/_install"
+          stage compaction bash tools/ci/actions/compaction-stress.sh "$PWD/_install"
+      - name: Preserve logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: linux-port-regression
+          path: |
+            _ci_logs/
+            _build/log
+            _build/main/log
+          if-no-files-found: warn
