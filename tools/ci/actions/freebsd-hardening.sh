@@ -63,6 +63,19 @@ depends: ["ocaml" {>= "4.14"} "base-unix" "base-threads"]
 install: [["install" "-m" "0755" "$bootstrap_dune" "%{bin}%/dune"]]
 OPAM
 opam pin add --no-action --yes dune.3.23.1 "$work/dune-tool"
+# The overlay predates this compiler's runtime-5-only implementation.
+opam source --yes re.1.14.0+ox --dir="$work/re-runtime5"
+runtime5_decl='external runtime5 : unit -> bool @@ portable = "%runtime5"'
+grep -Fx "$runtime5_decl" "$work/re-runtime5/lib/import.ml"
+sed -i "s/^$runtime5_decl$/let runtime5 () = true/" \
+  "$work/re-runtime5/lib/import.ml"
+cat > "$work/re-runtime5/re.opam" <<'OPAM'
+opam-version: "2.0"
+synopsis: "OxCaml Re with runtime-5-only compatibility"
+depends: ["ocaml" {>= "5.4"} "dune" {>= "3.17"} "seq"]
+build: [["dune" "build" "-p" "re" "-j" jobs "@install"]]
+OPAM
+opam pin add --no-action --yes re.1.14.0+ox "$work/re-runtime5"
 opam install --yes dune.3.23.1 ocamlfind.1.9.8+ox \
   dune-configurator.3.22.2+ox alcotest.1.9.0+ox re.1.14.0+ox uutf.1.0.4+ox
 opam install --yes --with-test cppo.1.8.0 yojson.2.2.2+ox lwt.5.9.2+ox
