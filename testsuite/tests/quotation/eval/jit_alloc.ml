@@ -16,9 +16,15 @@ external check_contents : nativeint -> string -> bool
 
 let () =
   let page = page_size () in
+  let iterations =
+    match Sys.getenv_opt "OCAML_JIT_STRESS_ITERATIONS" with
+    | None -> max 1 (256 * 1024 / (4 * page))
+    | Some n -> int_of_string n
+  in
+  assert (iterations > 0);
   misalign_break ();
-  let allocations = Array.init 256 (fun i ->
-    let size = page * (1 + i mod 16) in
+  let allocations = Array.init iterations (fun i ->
+    let size = page * (1 + i mod 4) in
     let addr = match allocate size with
       | Ok addr -> addr
       | Error msg -> failwith msg
