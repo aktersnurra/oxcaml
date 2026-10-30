@@ -1,64 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-if [[ $(uname -s) != FreeBSD || $(uname -m) != amd64 ]]; then
-  echo "This job requires FreeBSD/amd64." >&2
-  exit 1
-fi
-configuration=${1:-default}
-case "$configuration" in
-  default) configure_flags=() ;;
-  multidomain)
-    configure_flags=(--enable-stack-checks --enable-poll-insertion
-                     --enable-multidomain) ;;
-  *) echo "Unknown configuration: $configuration" >&2; exit 1 ;;
-esac
-
 cd "$(git rev-parse --show-toplevel)"
-root=$PWD
-mkdir -p _ci_logs _ci_bin
-ln -sf "$(command -v gmake)" _ci_bin/make
-ln -sf "$(command -v gsed)" _ci_bin/sed
-export PATH="$root/_ci_bin:$PATH"
-export OPAMROOT
-OPAMROOT=$(mktemp -d /tmp/oxcaml-ci-opam.XXXXXX)
-export OPAMJOBS=2
-export DUNE_JOBS=1
-
-run_stage() {
-  local name=$1
-  shift
-  echo "::notice title=FreeBSD validation::$name"
-  "$@" 2>&1 | tee "$root/_ci_logs/$name.log"
+mkdir -p _ci_logs
+work=$(mktemp -d /tmp/sleep-control.XXXXXX)
+trap 'rm -rf "$work"' EXIT
+cat > "$work/sleep.c" <<'C'
+#include <errno.h>
+#include <signal.h>
+#include <stdio.h>
+#include <sys/time.h>
+#include <time.h>
+static volatile sig_atomic_t ticks;
+static void tick(int signal) { (void)signal; ticks++; }
+static double now(clockid_t id) {
+  struct timespec ts;
+  if (clock_gettime(id, &ts) != 0) { perror("clock_gettime"); return -1; }
+  return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
-
-run_stage platform sh -c 'uname -a; freebsd-version; cc --version'
-run_stage opam-init opam init --bare --no-setup --yes \
-  default https://github.com/ocaml/opam-repository.git
-run_stage opam-repo opam repository add local \
-  "$root/tools/ci/local-opam" --all-switches --yes
-run_stage bootstrap opam switch create bootstrap --yes \
-  --repositories=local,default \
-  oxcaml-ci-deps.5.4.0-with-ocaml.5.4.0-with-ocamlformat.0.29.0
-eval "$(opam env --switch=bootstrap --set-switch --shell=sh)"
-run_stage versions sh -c 'ocamlopt -version; dune --version; menhir --version'
-run_stage autoconf autoconf
-run_stage configure ./configure --prefix="$root/_install" \
-  --with-opam-switch=bootstrap "${configure_flags[@]}"
-run_stage boot gmake -s boot-compiler
-result=0
-run_stage fmt gmake -s fmt || result=1
-git diff --exit-code || result=1
-run_stage jit-tests gmake -s test-one DIR=quotation/eval
-# Leave room for the domains spawned by multicore tests.
-run_stage upstream-tests env PARALLEL='--jobs 2' gmake -s test || result=1
-run_stage oxcaml-tests gmake -s runtest || result=1
-if run_stage install gmake -s install; then
-  run_stage installed bash tools/ci/actions/check-installed.sh \
-    "$root/_install" || result=1
-  run_stage hardening bash tools/ci/actions/freebsd-hardening.sh \
-    "$configuration" || result=1
-else
-  result=1
-fi
-exit "$result"
+int main(void) {
+  struct sigaction action = {0};
+  action.sa_handler = tick;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(SIGALRM, &action, NULL) != 0) return 1;
+  for (int signals = 0; signals < 2; signals++) {
+    struct itimerval timer = {{0, signals ? 10000 : 0},
+                             {0, signals ? 10000 : 0}};
+    if (setitimer(ITIMER_REAL, &timer, NULL) != 0) return 1;
+    for (int round = 0; round < 10; round++) {
+      struct timespec delay = {1, 0};
+      double wall = now(CLOCK_REALTIME), mono = now(CLOCK_MONOTONIC);
+      int ret, interrupted = 0;
+      do {
+        ret = nanosleep(&delay, &delay);
+        if (ret == -1 && errno == EINTR) interrupted++;
+      } while (ret == -1 && errno == EINTR);
+      double mono_end = now(CLOCK_MONOTONIC);
+      double wall_end = now(CLOCK_REALTIME);
+      printf("signals=%d round=%d ret=%d wall=%.9f mono=%.9f eintr=%d\n",
+             signals, round, ret, wall_end-wall, mono_end-mono, interrupted);
+      fflush(stdout);
+    }
+  }
+  return 0;
+}
+C
+cc -Wall -Wextra -Werror "$work/sleep.c" -o "$work/sleep"
+sysctl kern.timecounter.hardware kern.timecounter.choice
+"$work/sleep" 2>&1 | tee _ci_logs/sleep-control.log

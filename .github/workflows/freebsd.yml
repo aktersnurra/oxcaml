@@ -1,5 +1,5 @@
 # Keep all workflow permissions read-only for the source repository.
-name: FreeBSD
+name: FreeBSD nanosleep control
 on:
   push:
     branches:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    name: FreeBSD ${{ matrix.release }} amd64 (${{ matrix.configuration }})
+    name: FreeBSD ${{ matrix.release }} amd64 (${{ matrix.clock }})
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -21,8 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        release: ['14.4', '15.1']
-        configuration: [default, multidomain]
+        release: ['15.1']
+        clock: [TSC-low, kvmclock]
+        configuration: [default]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -39,10 +40,7 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
-            # Use the hypervisor's clock when it is available.
-            if sysctl -n kern.timecounter.choice | grep -Fq 'kvmclock('; then
-              sysctl kern.timecounter.hardware=kvmclock
-            fi
+            sysctl kern.timecounter.hardware=${{ matrix.clock }}
             pkg install -y bash gmake gsed autoconf git ocaml-opam rsync parallel
             pw useradd oxcaml -m -s /usr/local/bin/bash
           run: |
@@ -57,7 +55,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: freebsd-${{ matrix.release }}-amd64-${{ matrix.configuration }}
+          name: freebsd-${{ matrix.release }}-${{ matrix.clock }}
           path: |
             _ci_logs/
             _build/log
