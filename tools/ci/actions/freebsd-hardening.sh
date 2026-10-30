@@ -43,26 +43,32 @@ opam install --yes "ocaml-system.$version"
 eval "$(opam env --switch=installed --set-switch --shell=sh)"
 test "$(ocamlc -where)" = "$prefix/lib/ocaml"
 opam install --yes dune.3.23.1 ocamlfind.1.9.8
-opam install --yes --with-test yojson.3.0.0 lwt.5.9.2 utop.2.16.0
+opam install --yes --with-test cppo.1.8.0 yojson.3.0.0 lwt.5.9.2
 opam list --installed --columns=name,version
 dune --version
 ocamlfind printconf
-utop -version
+printf '#define ANSWER 42\nlet answer = ANSWER\n' > "$work/macro.ml"
+cppo -n "$work/macro.ml" > "$work/expanded.ml"
+grep -Fx 'let answer = 42' "$work/expanded.ml"
+printf '{"message":"FreeBSD","values":[1,2,3]}\n' > "$work/input.json"
+ydump "$work/input.json" > "$work/output.json"
 
 cat > "$work/smoke.ml" <<'OCAML'
-#require "yojson";;
-#require "lwt.unix";;
 let () =
   let json = "{\"message\":\"FreeBSD\",\"values\":[1,2,3]}" in
   let value = Yojson.Safe.from_string json in
   assert (Yojson.Safe.from_string (Yojson.Safe.to_string value) = value);
+  assert (Yojson.Safe.from_file Sys.argv.(1) = value);
   let output = Lwt_main.run
     (Lwt_process.pmap ("/bin/cat", [| "cat" |]) json) in
   assert (output = json);
   print_endline "Installed applications OK"
-;;
 OCAML
-utop -noinit "$work/smoke.ml" > "$work/smoke.out"
-cat "$work/smoke.out"
-grep -Fx 'Installed applications OK' "$work/smoke.out"
+for compiler in ocamlc ocamlopt; do
+  ocamlfind "$compiler" -package yojson,lwt.unix -linkpkg \
+    "$work/smoke.ml" -o "$work/smoke.$compiler"
+  "$work/smoke.$compiler" "$work/output.json" > "$work/smoke.out"
+  cat "$work/smoke.out"
+  grep -Fx 'Installed applications OK' "$work/smoke.out"
+done
 opam switch export "$root/_ci_logs/installed-packages.export"
