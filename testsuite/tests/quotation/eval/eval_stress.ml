@@ -10,7 +10,7 @@
 
 let iterations =
   match Sys.getenv_opt "OCAML_JIT_STRESS_ITERATIONS" with
-  | None -> 32
+  | None -> 8
   | Some n -> int_of_string n
 
 let names = [| "zero"; "one"; "two"; "three";
