@@ -50,7 +50,8 @@ result=0
 run_stage fmt gmake -s fmt || result=1
 git diff --exit-code || result=1
 run_stage jit-tests gmake -s test-one DIR=quotation/eval
-run_stage upstream-tests gmake -s test || result=1
+# Leave room for the domains spawned by multicore tests.
+run_stage upstream-tests env PARALLEL='--jobs 2' gmake -s test || result=1
 run_stage oxcaml-tests gmake -s runtest || result=1
 if run_stage install gmake -s install; then
   run_stage installed bash tools/ci/actions/check-installed.sh \

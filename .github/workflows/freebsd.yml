@@ -35,7 +35,7 @@ jobs:
           release: ${{ matrix.release }}
           arch: x86_64
           mem: 6144
-          cpu: 2
+          cpu: 4
           sync: rsync
           copyback: true
           prepare: |
