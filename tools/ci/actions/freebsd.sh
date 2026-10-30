@@ -56,10 +56,13 @@ sysctl kern.timecounter.hardware kern.timecounter.choice || true
 opam pin add --no-action --yes lwt.5.9.2 "$work/lwt"
 lwt_control() {
   local status=0
-  opam install --yes --with-test lwt.5.9.2 || status=$?
-  if [[ $status != 0 ]]; then
-    cat "$OPAMROOT"/log/lwt-*.out
-  fi
+  opam install --keep-build-dir --yes --with-test lwt.5.9.2 || status=$?
+  cat "$OPAMROOT"/log/lwt-*.out
   return "$status"
 }
 run_stage lwt-control lwt_control
+for round in 1 2 3; do
+  echo "Lwt clock control round $round"
+  "$OPAM_SWITCH_PREFIX"/.opam-switch/build/lwt.5.9.2/\
+_build/default/test/unix/main.exe
+done
