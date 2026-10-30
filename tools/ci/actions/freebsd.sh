@@ -61,8 +61,9 @@ lwt_control() {
   return "$status"
 }
 run_stage lwt-control lwt_control
+test_dir="$OPAM_SWITCH_PREFIX/.opam-switch/build/lwt.5.9.2"
+cd "$test_dir/_build/default/test/unix"
 for round in 1 2 3; do
   echo "Lwt clock control round $round"
-  "$OPAM_SWITCH_PREFIX"/.opam-switch/build/lwt.5.9.2/\
-_build/default/test/unix/main.exe
+  ./main.exe
 done
