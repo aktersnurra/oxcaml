@@ -22,7 +22,7 @@ int main(void) {
   action.sa_handler = tick;
   sigemptyset(&action.sa_mask);
   if (sigaction(SIGALRM, &action, NULL) != 0) return 1;
-  for (int signals = 0; signals < 2; signals++) {
+  for (int signals = 0; signals < 3; signals++) {
     struct itimerval timer = {{0, signals ? 10000 : 0},
                              {0, signals ? 10000 : 0}};
     if (setitimer(ITIMER_REAL, &timer, NULL) != 0) return 1;
@@ -31,9 +31,15 @@ int main(void) {
       double wall = now(CLOCK_REALTIME), mono = now(CLOCK_MONOTONIC);
       int ret, interrupted = 0;
       do {
-        ret = nanosleep(&delay, &delay);
+        ret = nanosleep(&delay, signals == 2 ? NULL : &delay);
         if (ret == -1 && errno == EINTR) interrupted++;
-      } while (ret == -1 && errno == EINTR);
+        if (signals == 2) {
+          double remaining = 1.0 - (now(CLOCK_MONOTONIC) - mono);
+          if (remaining <= 0) break;
+          delay.tv_sec = (time_t)remaining;
+          delay.tv_nsec = (long)((remaining - delay.tv_sec) * 1e9);
+        }
+      } while (signals == 2 || (ret == -1 && errno == EINTR));
       double mono_end = now(CLOCK_MONOTONIC);
       double wall_end = now(CLOCK_REALTIME);
       printf("signals=%d round=%d ret=%d wall=%.9f mono=%.9f eintr=%d\n",
