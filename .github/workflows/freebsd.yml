@@ -13,14 +13,15 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    name: FreeBSD 14.4 amd64 (${{ matrix.configuration }})
+    name: FreeBSD ${{ matrix.release }} amd64 (${{ matrix.configuration }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
+        release: ['14.4', '15.1']
         configuration: [default, multidomain]
     steps:
       - name: Checkout
@@ -31,7 +32,7 @@ jobs:
       - name: Build and test in FreeBSD
         uses: vmactions/freebsd-vm@3dd136ca59fb7b16e229f4daba23c7690298df57
         with:
-          release: '14.4'
+          release: ${{ matrix.release }}
           arch: x86_64
           mem: 6144
           cpu: 2
@@ -52,7 +53,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: freebsd-14.4-amd64-${{ matrix.configuration }}
+          name: freebsd-${{ matrix.release }}-amd64-${{ matrix.configuration }}
           path: |
             _ci_logs/
             _build/log
