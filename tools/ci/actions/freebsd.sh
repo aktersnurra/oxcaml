@@ -49,6 +49,7 @@ run_stage boot gmake -s boot-compiler
 result=0
 run_stage fmt gmake -s fmt || result=1
 git diff --exit-code || result=1
+run_stage sleep-tests gmake -s test-one TEST=lib-unix/common/sleep.ml
 run_stage jit-tests gmake -s test-one DIR=quotation/eval
 # Leave room for the domains spawned by multicore tests.
 run_stage upstream-tests env PARALLEL='--jobs 2' gmake -s test || result=1
