@@ -33,7 +33,28 @@ CAMLprim value caml_unix_sleep(value duration_sec)
 {
   double sec = Double_val(duration_sec);
   if (sec < 0.0) return Val_unit;
-#if defined(HAS_NANOSLEEP)
+#if defined(__FreeBSD__) && defined(HAS_NANOSLEEP)
+  {
+    /* FreeBSD may under-report the remaining time after EINTR. Recompute
+       it from a monotonic clock so repeated signals cannot shorten sleep. */
+    struct timespec start, now;
+    double remaining = sec;
+    if (clock_gettime(CLOCK_MONOTONIC, &start) == -1)
+      caml_uerror("sleep", Nothing);
+    do {
+      struct timespec t = caml_timespec_of_sec(remaining);
+      int ret;
+      caml_enter_blocking_section();
+      ret = nanosleep(&t, NULL);
+      caml_leave_blocking_section();
+      if (ret == -1 && errno != EINTR) caml_uerror("sleep", Nothing);
+      if (clock_gettime(CLOCK_MONOTONIC, &now) == -1)
+        caml_uerror("sleep", Nothing);
+      remaining = sec - ((double)(now.tv_sec - start.tv_sec)
+                         + (now.tv_nsec - start.tv_nsec) / 1e9);
+    } while (remaining > 0.0);
+  }
+#elif defined(HAS_NANOSLEEP)
   {
     struct timespec t = caml_timespec_of_sec(sec);
     int ret;
