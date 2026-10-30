@@ -90,6 +90,7 @@ jobs:
           opam-pin: false
       - name: Build, test, and check the installed compiler
         run: |
+          set -euo pipefail
           mkdir -p _ci_logs
           stage() {
             local name=$1
