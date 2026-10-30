@@ -81,18 +81,19 @@ opam install --yes dune.3.23.1 ocamlfind.1.9.8+ox \
 opam install --yes --with-test cppo.1.8.0 yojson.2.2.2+ox lwt.5.9.2+ox
 # The overlay's Yojson metadata has no test target, so run it explicitly.
 opam source --yes yojson.2.2.2+ox --dir="$work/yojson-tests"
-dune build --root "$work/yojson-tests" -p yojson @runtest
+(cd "$work/yojson-tests" && dune build -p yojson @runtest)
 opam list --installed --columns=name,version
 dune --version
 ocamlfind printconf
 printf '#define ANSWER 42\nlet answer = ANSWER\n' > "$work/macro.ml"
 cppo -n "$work/macro.ml" > "$work/expanded.ml"
-grep -Fx 'let answer = 42' "$work/expanded.ml"
+cat "$work/expanded.ml"
 printf '{"message":"FreeBSD","values":[1,2,3]}\n' > "$work/input.json"
 ydump "$work/input.json" > "$work/output.json"
 
 cat > "$work/smoke.ml" <<'OCAML'
 let () =
+  assert (Expanded.answer = 42);
   let json = "{\"message\":\"FreeBSD\",\"values\":[1,2,3]}" in
   let value = Yojson.Safe.from_string json in
   assert (Yojson.Safe.from_string (Yojson.Safe.to_string value) = value);
@@ -103,8 +104,9 @@ let () =
   print_endline "Installed applications OK"
 OCAML
 for compiler in ocamlc ocamlopt; do
-  ocamlfind "$compiler" -package yojson,lwt.unix -linkpkg \
-    "$work/smoke.ml" -o "$work/smoke.$compiler"
+  ocamlfind "$compiler" -thread -package yojson,lwt.unix -linkpkg \
+    -I "$work" "$work/expanded.ml" "$work/smoke.ml" \
+    -o "$work/smoke.$compiler"
   "$work/smoke.$compiler" "$work/output.json" > "$work/smoke.out"
   cat "$work/smoke.out"
   grep -Fx 'Installed applications OK' "$work/smoke.out"
