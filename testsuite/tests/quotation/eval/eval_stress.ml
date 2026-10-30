@@ -1,7 +1,7 @@
 (* TEST
   include eval;
-  include unix;
   hasunix;
+  not-target-windows;
   flags = "-extension runtime_metaprogramming";
   native;
 *)
