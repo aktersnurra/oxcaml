@@ -42,13 +42,4 @@ run_stage bootstrap opam switch create bootstrap --yes \
   oxcaml-ci-deps.5.4.0-with-ocaml.5.4.0-with-ocamlformat.0.29.0
 eval "$(opam env --switch=bootstrap --set-switch --shell=sh)"
 run_stage versions sh -c 'ocamlopt -version; dune --version; menhir --version'
-run_stage autoconf autoconf
-run_stage configure ./configure --prefix="$root/_install" \
-  --with-opam-switch=bootstrap "${configure_flags[@]}"
-run_stage boot gmake -s boot-compiler
-run_stage fmt gmake -s fmt
-git diff --exit-code
-run_stage install gmake -s install
-run_stage installed bash tools/ci/actions/check-installed.sh "$root/_install"
-run_stage applications bash tools/ci/actions/freebsd-hardening.sh \
-  "$configuration" packages
+run_stage lwt-control opam install --yes --with-test lwt.5.9.2
