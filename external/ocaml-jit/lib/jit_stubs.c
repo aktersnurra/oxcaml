@@ -98,7 +98,7 @@ static void* alloc_page_aligned_using_sbrk(size_t page_size, size_t size) {
   if (brk == SBRK_FAILED) {
     return NULL;
   }
-  assert((uintptr_t)brk % page_size == 0);
+  assert((uintptr_t)next_page_start % page_size == 0);
   return next_page_start;
 }
 

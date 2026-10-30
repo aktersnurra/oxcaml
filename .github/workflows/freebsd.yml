@@ -45,6 +45,7 @@ jobs:
           stage boot make -s boot-compiler
           stage fmt make -s fmt
           git diff --exit-code
+          stage jit-tests make -s test-one DIR=quotation/eval
           stage tests make -s test
           stage oxcaml-tests make -s runtest
           stage install make -s install
