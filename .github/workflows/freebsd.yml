@@ -39,10 +39,6 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
-            # Use the hypervisor's clock when it is available.
-            if sysctl -n kern.timecounter.choice | grep -Fq 'kvmclock('; then
-              sysctl kern.timecounter.hardware=kvmclock
-            fi
             pkg install -y bash gmake gsed autoconf git ocaml-opam rsync parallel
             pw useradd oxcaml -m -s /usr/local/bin/bash
           run: |
