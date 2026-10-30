@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <time.h>
 #include <caml/alloc.h>
 #include <caml/fail.h>
