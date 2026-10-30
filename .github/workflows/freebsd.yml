@@ -39,6 +39,7 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
+            sysctl kern.timecounter.hardware=kvmclock
             pkg install -y bash gmake gsed autoconf git ocaml-opam rsync parallel
             pw useradd oxcaml -m -s /usr/local/bin/bash
           run: |
